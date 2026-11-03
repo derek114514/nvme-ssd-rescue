@@ -1,0 +1,15 @@
+#!/bin/bash
+# SystemRescue 开机自动运行（NVMe 固态修复盘）
+# 检测/修复窗口由 sysrescue.d/500-ssdfix.yaml 里的 gui_autostart 自动打开；
+# 这里只在桌面上放一个备用图标“SSD Fix”，万一窗口没弹出来可以双击它。
+S=/run/archiso/bootmnt/usb-ssd-fix/start_gui.sh
+mkdir -p /root/Desktop
+cat > /root/Desktop/ssdfix.desktop <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=SSD Fix
+Exec=xfce4-terminal --maximize --title=SSD-Fix -x bash $S
+Terminal=false
+DESKTOP
+chmod +x /root/Desktop/ssdfix.desktop
+exit 0

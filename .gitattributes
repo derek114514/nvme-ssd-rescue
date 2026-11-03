@@ -1,0 +1,9 @@
+# 源码统一 UTF-8；发布时 tools/build.py（或 make_usb.ps1）把 .cmd 转成 GBK + CRLF
+*.sh    text eol=lf
+*.yaml  text eol=lf
+src/autorun/autorun text eol=lf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+*.txt   text eol=crlf
+src/usb-ssd-fix/bcd/BCD binary
+src/usb-ssd-fix/bcd/guids.txt text eol=lf

@@ -1,0 +1,7 @@
+一般用不到：全新安装时直接在 BIOS 里关闭 VMD 更省事（见 U 盘根目录 使用说明.txt 第四节）。
+
+不想关 VMD 的话，把解压好的 Intel RST / VMD 驱动文件夹放在这里（里面要有 iaStorVD.inf）。
+在安装界面运行 D:\fix 选 1 时，如果看不到固态，会自动加载这里的驱动；也可以选 3 手动加载。
+
+下载：Intel 官网搜索 “Intel Rapid Storage Technology Driver”（11 到 13 代平台），
+选名字里带 f6 / flpy / vmd 的 zip 包；或者在电脑厂商官网你的型号页面下载 RST / VMD 驱动。

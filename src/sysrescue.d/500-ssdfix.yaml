@@ -1,0 +1,11 @@
+---
+# NVMe 固态修复盘：
+#   开机直接进图形桌面（纯文字界面显示不了中文），桌面一出来就自动打开检测/修复窗口；
+#   不把系统复制到内存，这样 U 盘一直挂着，修复工具和报告都在 U 盘上。
+global:
+    dostartx: true
+    copytoram: false
+
+gui_autostart:
+    500-ssdfix:
+        exec: "xfce4-terminal --maximize --title=SSD-Fix -x bash /run/archiso/bootmnt/usb-ssd-fix/start_gui.sh"
