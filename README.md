@@ -22,7 +22,7 @@
 
 ## 快速开始
 
-1. 在 [Releases](../../releases) 下载 `nvme-ssd-rescue-v6.zip`，解压。
+1. 在 [Releases](../../releases) 下载最新的 `nvme-ssd-rescue-v*.zip`，解压。
 2. 插一个 **2GB 以上** 的 U 盘（会被清空），双击 **`制作U盘.cmd`**，按提示选 U 盘、输入 `YES`。
    脚本会自动下载 [SystemRescue 13.02](https://www.system-rescue.org/)（约 1.3GB）并校验 SHA256，需要 [7-Zip](https://www.7-zip.org)（没有会尝试用 winget 安装）。
 3. 有问题的电脑：BIOS 里 **关闭 Secure Boot**，用启动菜单（华硕 Esc，联想 / 戴尔 F12，惠普 F9，微星 F11）选带 **UEFI** 字样的 U 盘。
@@ -70,7 +70,7 @@ tools/
 ## 从源码构建
 
 ```bash
-python3 tools/build.py          # 输出 dist/nvme-ssd-rescue-v6.zip
+python3 tools/build.py          # 输出 dist/nvme-ssd-rescue-<版本>.zip
 ```
 
 ## 免责声明

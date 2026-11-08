@@ -12,7 +12,7 @@ import os, re, shutil, subprocess, sys, zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 TOOLS = os.path.join(ROOT, 'tools')
-VERSION = 'v6'
+VERSION = 'v6.1'
 OUT = os.path.join(ROOT, 'dist', 'nvme-ssd-rescue')
 ZIP = os.path.join(ROOT, 'dist', f'nvme-ssd-rescue-{VERSION}.zip')
 SC = os.environ.get('SHELLCHECK') or shutil.which('shellcheck')

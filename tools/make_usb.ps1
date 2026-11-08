@@ -95,6 +95,49 @@ if (-not $disk) { Die "磁盘 $DiskNumber 不是 USB 磁盘，为了安全拒绝
 if ($disk.IsBoot -or $disk.IsSystem) { Die "磁盘 $DiskNumber 是当前系统所在的盘，拒绝操作。" }
 if ($disk.Size -lt 2GB) { Die 'U 盘太小，至少要 2GB。' }
 
+# ---- 下载：用 .NET 自己下，不用 curl.exe ----
+# 用户名是中文时（例如 C:\Users\张三\Downloads），部分 Windows 自带的 curl 打不开这种路径，
+# 报 “Failed to open the file … No such file or directory / (23) client returned ERROR on write”。
+# .NET 直接用 Unicode 路径写文件，没有这个问题；支持断点续传（.part 文件留着下次接着下）。
+function Get-Url([string]$url, [string]$dest) {
+    Add-Type -AssemblyName System.Net.Http
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
+    $h = New-Object System.Net.Http.HttpClientHandler
+    $h.AllowAutoRedirect = $true
+    $c = New-Object System.Net.Http.HttpClient($h)
+    $c.Timeout = [TimeSpan]::FromHours(3)
+    [void]$c.DefaultRequestHeaders.UserAgent.TryParseAdd('nvme-ssd-rescue-make-usb/6.1')
+    $have = 0
+    if (Test-Path -LiteralPath $dest) { $have = (Get-Item -LiteralPath $dest).Length }
+    $req = New-Object System.Net.Http.HttpRequestMessage([System.Net.Http.HttpMethod]::Get, $url)
+    if ($have -gt 0) { $req.Headers.Range = New-Object System.Net.Http.Headers.RangeHeaderValue($have, $null) }
+    $r = $c.SendAsync($req, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+    if ([int]$r.StatusCode -eq 416) { $r.Dispose(); $c.Dispose(); return }        # 已经下完了
+    [void]$r.EnsureSuccessStatusCode()
+    $append = ([int]$r.StatusCode -eq 206)
+    if (-not $append) { $have = 0 }
+    if ($append) { Say ("  从 {0:N0} MB 处接着下载" -f ($have / 1MB)) }
+    $total = $r.Content.Headers.ContentLength
+    if ($total) { $total += $have }
+    $in = $r.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+    $mode = if ($append) { [IO.FileMode]::Append } else { [IO.FileMode]::Create }
+    $out = New-Object IO.FileStream($dest, $mode, [IO.FileAccess]::Write, [IO.FileShare]::None, 1MB)
+    try {
+        $buf = New-Object byte[] (1MB); $done = $have; $t0 = Get-Date; $last = $t0; $base = $have
+        while (($n = $in.Read($buf, 0, $buf.Length)) -gt 0) {
+            $out.Write($buf, 0, $n); $done += $n
+            $now = Get-Date
+            if (($now - $last).TotalSeconds -ge 1) {
+                $last = $now
+                $speed = ($done - $base) / [Math]::Max(1, ($now - $t0).TotalSeconds) / 1MB
+                if ($total) { $pct = [int]($done * 100 / $total) } else { $pct = 0 }
+                Write-Progress -Activity '下载 SystemRescue' -PercentComplete $pct -Status ("{0:N0} / {1:N0} MB  {2:N1} MB/s" -f ($done / 1MB), ($total / 1MB), $speed)
+            }
+        }
+    } finally { $out.Dispose(); $in.Dispose(); $r.Dispose(); $c.Dispose(); Write-Progress -Activity '下载 SystemRescue' -Completed }
+    if ($total -and $done -ne $total) { throw "只下载了 $done / $total 字节" }
+}
+
 # ---- 5. 准备 ISO：指定的 → 脚本旁边 → 下载文件夹 → 现场下载；都要校验 SHA256 ----
 $dl = Join-Path $env:USERPROFILE 'Downloads'
 $cands = @($IsoPath, (Join-Path $here $SR_ISO), (Join-Path $dl $SR_ISO)) | Where-Object { $_ -and (Test-Path $_) }
@@ -102,17 +145,25 @@ $iso = $null
 foreach ($c in $cands) {
     Say "校验 $c ……"
     if ((Get-FileHash $c -Algorithm SHA256).Hash -eq $SR_SHA) { $iso = $c; break }
-    Say '  校验不通过，忽略这个文件。' Yellow
+    Say ("  校验不通过（大小 {0:N0} MB）：文件不完整，或者不是 {1}。忽略这个文件。" -f ((Get-Item $c).Length / 1MB), $SR_ISO) Yellow
 }
 if (-not $iso) {
     $iso = Join-Path $dl $SR_ISO
     foreach ($u in $SR_URLS) {
         Say "下载 SystemRescue $SR_VER（约 1.3GB）：$u" Cyan
-        curl.exe -L --fail --retry 3 -o "$iso.part" $u
-        if ($LASTEXITCODE -eq 0 -and (Get-FileHash "$iso.part" -Algorithm SHA256).Hash -eq $SR_SHA) { Move-Item -Force "$iso.part" $iso; break }
+        $ok = $false
+        for ($try = 1; $try -le 3 -and -not $ok; $try++) {
+            try { Get-Url $u "$iso.part"; $ok = $true }
+            catch { Say "  第 $try 次下载中断：$($_.Exception.GetBaseException().Message)" Yellow; Start-Sleep 3 }
+        }
+        if ($ok) {
+            Say '  下载完成，校验中……'
+            if ((Get-FileHash "$iso.part" -Algorithm SHA256).Hash -eq $SR_SHA) { Move-Item -Force "$iso.part" $iso; break }
+            Remove-Item -Force "$iso.part" -ErrorAction SilentlyContinue   # 内容不对，断点续传也救不了
+        }
         Say '  下载失败或校验不通过，换下一个地址。' Yellow
     }
-    if (-not (Test-Path $iso)) { Die "下载失败。可以手动从 https://www.system-rescue.org/Download/ 下载 $SR_ISO 放到本脚本旁边再运行。" }
+    if (-not (Test-Path $iso)) { Die "下载失败。可以用浏览器从 https://www.system-rescue.org/Download/ 下载 $SR_ISO（13.02 版、amd64），放到本脚本旁边或“下载”文件夹，再运行本脚本。" }
 }
 Say "ISO 校验通过：$iso" Green
 
